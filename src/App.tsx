@@ -1,15 +1,19 @@
 import { useState, useEffect } from 'react';
 import { Habit, CheckInRecord, DayProgress } from './types/habit';
 import { habitService } from './services/habitService';
+import { supabase } from './services/supabase';
 import { getTodayString, getDayOfWeekName } from './utils/date';
 import { ProgressRing } from './components/ProgressRing';
 import { HabitItem } from './components/HabitItem';
 import { StatsView } from './components/StatsView';
 import { AddHabitModal } from './components/AddHabitModal';
-import { CheckCircle2, BarChart3, Plus, Sparkles } from 'lucide-react';
+import { AuthView } from './components/AuthView';
+import { CheckCircle2, BarChart3, Plus, Sparkles, LogOut } from 'lucide-react';
 import './App.css';
 
 export function App() {
+  const [session, setSession] = useState<any>(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [currentTab, setCurrentTab] = useState<'today' | 'stats'>('today');
   const [habits, setHabits] = useState<Habit[]>([]);
   const [todayRecords, setTodayRecords] = useState<CheckInRecord[]>([]);
@@ -20,31 +24,53 @@ export function App() {
     percentage: 0,
   });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   const todayStr = getTodayString();
   const dayOfWeek = getDayOfWeekName(todayStr);
 
   useEffect(() => {
-    loadData();
+    // 检查与监听 Supabase 登录会话
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+      if (session) {
+        loadData();
+      }
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        loadData();
+      }
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
 
   const loadData = async () => {
     setLoading(true);
-    const [fetchedHabits, records, dayProg] = await Promise.all([
-      habitService.getHabits(),
-      habitService.getRecordsByDate(todayStr),
-      habitService.getDayProgress(todayStr),
-    ]);
-    setHabits(fetchedHabits);
-    setTodayRecords(records);
-    setProgress(dayProg);
-    setLoading(false);
+    try {
+      const [fetchedHabits, records, dayProg] = await Promise.all([
+        habitService.getHabits(),
+        habitService.getRecordsByDate(todayStr),
+        habitService.getDayProgress(todayStr),
+      ]);
+      setHabits(fetchedHabits);
+      setTodayRecords(records);
+      setProgress(dayProg);
+    } catch (err) {
+      console.error('加载数据失败:', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleToggleHabit = async (habitId: string) => {
     await habitService.toggleCheckIn(habitId, todayStr);
-    // 快速刷新今日记录和进度
     const [records, dayProg] = await Promise.all([
       habitService.getRecordsByDate(todayStr),
       habitService.getDayProgress(todayStr),
@@ -69,9 +95,32 @@ export function App() {
     await loadData();
   };
 
+  const handleDeleteHabit = async (habitId: string) => {
+    await habitService.deleteHabit(habitId);
+    await loadData();
+  };
+
   const isHabitCompletedToday = (habitId: string) => {
     return todayRecords.some((r) => r.habitId === habitId);
   };
+
+  if (authLoading) {
+    return (
+      <div className="app-shell loading-screen">
+        <div className="spinner"></div>
+        <p>正在同步云端状态...</p>
+      </div>
+    );
+  }
+
+  // 未登录时显示注册/登录视图
+  if (!session) {
+    return (
+      <div className="app-shell auth-screen">
+        <AuthView onSuccess={() => loadData()} />
+      </div>
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -84,16 +133,27 @@ export function App() {
           </h1>
         </div>
 
-        {currentTab === 'today' && (
+        <div className="header-actions">
+          {currentTab === 'today' && (
+            <button
+              className="add-habit-trigger"
+              onClick={() => setIsAddModalOpen(true)}
+              aria-label="添加新习惯"
+            >
+              <Plus size={18} color="#007AFF" />
+              <span>新习惯</span>
+            </button>
+          )}
+
           <button
-            className="add-habit-trigger"
-            onClick={() => setIsAddModalOpen(true)}
-            aria-label="添加新习惯"
+            className="user-logout-btn"
+            onClick={() => supabase.auth.signOut()}
+            title={`已登录: ${session.user.email} (点击退出)`}
+            aria-label="退出登录"
           >
-            <Plus size={20} color="#007AFF" />
-            <span>新习惯</span>
+            <LogOut size={18} />
           </button>
-        )}
+        </div>
       </header>
 
       {/* 主体内容滚动区 */}
@@ -114,7 +174,7 @@ export function App() {
             </div>
 
             {loading ? (
-              <div className="loading-state">正在同步习惯...</div>
+              <div className="loading-state">正在同步云端习惯...</div>
             ) : habits.length === 0 ? (
               <div className="empty-state">
                 <Sparkles size={36} color="#8E8E93" />
@@ -128,6 +188,7 @@ export function App() {
                     habit={habit}
                     completed={isHabitCompletedToday(habit.id)}
                     onToggle={handleToggleHabit}
+                    onDelete={handleDeleteHabit}
                   />
                 ))}
               </div>
