@@ -1,0 +1,132 @@
+.app-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  flex: 1;
+  padding-bottom: 84px; /* 为 TabBar 留出安全空间 */
+}
+
+/* 顶部头部 */
+.app-header {
+  padding: 24px 20px 16px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  background: var(--bg-system);
+}
+
+.header-text-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.header-subtitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.header-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.5px;
+}
+
+.add-habit-trigger {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: #EBF5FF;
+  padding: 8px 14px;
+  border-radius: var(--radius-full);
+  color: var(--tint-blue);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+/* 页面滚动内容区 */
+.app-content {
+  flex: 1;
+  padding: 0 16px 24px;
+  overflow-y: auto;
+}
+
+.section-title-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 12px 4px 14px;
+}
+
+.section-title-text {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.2px;
+}
+
+.section-count-tag {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: rgba(0, 0, 0, 0.05);
+  padding: 2px 8px;
+  border-radius: 12px;
+}
+
+.loading-state, .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 48px 20px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* 底部 TabBar */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 480px;
+  height: 68px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  z-index: 50;
+}
+
+.tab-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: var(--text-secondary);
+  height: 100%;
+  transition: color 0.2s ease;
+}
+
+.tab-item.active {
+  color: var(--tint-blue);
+}
+
+.tab-label {
+  font-size: 11px;
+  font-weight: 600;
+}
