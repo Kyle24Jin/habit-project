@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --experimental-strip-types tests/habitService.test.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.2",

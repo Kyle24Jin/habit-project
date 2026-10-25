@@ -1,5 +1,5 @@
 import React from 'react';
-import { Check, Trash2 } from 'lucide-react';
+import { Check, Trash2, Pencil } from 'lucide-react';
 import { Habit } from '../types/habit';
 import './HabitItem.css';
 
@@ -7,6 +7,7 @@ interface HabitItemProps {
   habit: Habit;
   completed: boolean;
   onToggle: (habitId: string) => void;
+  onEdit?: (habit: Habit) => void;
   onDelete?: (habitId: string) => void;
 }
 
@@ -14,6 +15,7 @@ export const HabitItem: React.FC<HabitItemProps> = ({
   habit,
   completed,
   onToggle,
+  onEdit,
   onDelete,
 }) => {
   return (
@@ -28,15 +30,38 @@ export const HabitItem: React.FC<HabitItemProps> = ({
         >
           <span>{habit.icon}</span>
         </div>
-        <div className="habit-info">
-          <div className="habit-name">{habit.name}</div>
+        <div
+          className="habit-info"
+          onDoubleClick={() => onEdit?.(habit)}
+          title={onEdit ? '双击快速修改习惯' : undefined}
+        >
+          <div className="habit-name" title={habit.name}>
+            {habit.name}
+          </div>
           {habit.description && (
-            <div className="habit-desc">{habit.description}</div>
+            <div className="habit-desc" title={habit.description}>
+              {habit.description}
+            </div>
           )}
         </div>
       </div>
 
       <div className="habit-item-actions">
+        {onEdit && (
+          <button
+            type="button"
+            className="habit-edit-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onEdit(habit);
+            }}
+            aria-label="编辑习惯"
+            title="编辑习惯"
+          >
+            <Pencil size={16} />
+          </button>
+        )}
+
         {onDelete && (
           <button
             type="button"

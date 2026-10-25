@@ -136,6 +136,38 @@ class SupabaseHabitService {
   }
 
   /**
+   * 更新习惯信息（名称、备注、图标、主题色等）
+   */
+  async updateHabit(
+    habitId: string,
+    updates: Partial<Pick<Habit, 'name' | 'description' | 'icon' | 'color' | 'frequency'>>
+  ): Promise<Habit> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error('用户未登录');
+
+    const updatePayload: Record<string, any> = {};
+    if (updates.name !== undefined) updatePayload.name = updates.name;
+    if (updates.description !== undefined) updatePayload.description = updates.description;
+    if (updates.icon !== undefined) updatePayload.icon = updates.icon;
+    if (updates.color !== undefined) updatePayload.color = updates.color;
+    if (updates.frequency !== undefined) updatePayload.frequency = updates.frequency;
+
+    const { data, error } = await supabase
+      .from('habits')
+      .update(updatePayload)
+      .eq('id', habitId)
+      .select()
+      .single();
+
+    if (error || !data) {
+      console.error('更新习惯失败:', error);
+      throw new Error(error?.message || '更新习惯失败');
+    }
+
+    return this.mapDbHabit(data);
+  }
+
+  /**
    * 软删除（归档）习惯
    */
   async deleteHabit(habitId: string): Promise<boolean> {

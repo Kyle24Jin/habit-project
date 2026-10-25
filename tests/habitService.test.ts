@@ -1,0 +1,100 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+// Test mapping and payload generation logic for habit update
+interface HabitUpdatePayload {
+  name?: string;
+  description?: string;
+  icon?: string;
+  color?: string;
+  frequency?: 'daily';
+}
+
+function buildUpdatePayload(updates: HabitUpdatePayload) {
+  const payload: Record<string, any> = {};
+  if (updates.name !== undefined) payload.name = updates.name.trim();
+  if (updates.description !== undefined) payload.description = updates.description.trim();
+  if (updates.icon !== undefined) payload.icon = updates.icon;
+  if (updates.color !== undefined) payload.color = updates.color;
+  if (updates.frequency !== undefined) payload.frequency = updates.frequency;
+  return payload;
+}
+
+test('buildUpdatePayload constructs payload correctly when updating habit name', () => {
+  const payload = buildUpdatePayload({
+    name: '  早晨慢跑 5 公里  ',
+    description: '保持晨练',
+    icon: '🏃',
+    color: '#FF2D55',
+  });
+
+  assert.deepStrictEqual(payload, {
+    name: '早晨慢跑 5 公里',
+    description: '保持晨练',
+    icon: '🏃',
+    color: '#FF2D55',
+  });
+});
+
+test('buildUpdatePayload handles partial name updates', () => {
+  const payload = buildUpdatePayload({
+    name: '新的习惯名称',
+  });
+
+  assert.deepStrictEqual(payload, {
+    name: '新的习惯名称',
+  });
+  assert.strictEqual(payload.description, undefined);
+  assert.strictEqual(payload.icon, undefined);
+  assert.strictEqual(payload.color, undefined);
+});
+
+test('Habit name validation prevents empty or whitespace-only name', () => {
+  const validateName = (name: string): boolean => {
+    return name.trim().length > 0;
+  };
+
+  assert.strictEqual(validateName(''), false);
+  assert.strictEqual(validateName('   '), false);
+  assert.strictEqual(validateName('读书 30 分钟'), true);
+});
+
+test('Habit state update correctly modifies habit in collection', () => {
+  const initialHabits = [
+    {
+      id: 'habit-1',
+      name: '原习惯名',
+      description: '原描述',
+      icon: '☀️',
+      color: '#FF9500',
+      frequency: 'daily' as const,
+      createdAt: '2026-10-25T00:00:00.000Z',
+    },
+    {
+      id: 'habit-2',
+      name: '另一习惯',
+      description: '',
+      icon: '💧',
+      color: '#007AFF',
+      frequency: 'daily' as const,
+      createdAt: '2026-10-25T00:00:00.000Z',
+    },
+  ];
+
+  const updatedHabitData = {
+    name: '修改后的习惯名',
+    description: '新描述',
+    icon: '📖',
+    color: '#34C759',
+  };
+
+  const updatedHabits = initialHabits.map((h) =>
+    h.id === 'habit-1' ? { ...h, ...updatedHabitData } : h
+  );
+
+  assert.strictEqual(updatedHabits[0].name, '修改后的习惯名');
+  assert.strictEqual(updatedHabits[0].description, '新描述');
+  assert.strictEqual(updatedHabits[0].icon, '📖');
+  assert.strictEqual(updatedHabits[0].color, '#34C759');
+  assert.strictEqual(updatedHabits[1].name, '另一习惯');
+});

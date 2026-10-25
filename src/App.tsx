@@ -7,6 +7,7 @@ import { ProgressRing } from './components/ProgressRing';
 import { HabitItem } from './components/HabitItem';
 import { StatsView } from './components/StatsView';
 import { AddHabitModal } from './components/AddHabitModal';
+import { EditHabitModal } from './components/EditHabitModal';
 import { AuthView } from './components/AuthView';
 import { CheckCircle2, BarChart3, Plus, Sparkles, LogOut } from 'lucide-react';
 import './App.css';
@@ -24,6 +25,7 @@ export function App() {
     percentage: 0,
   });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
   const [loading, setLoading] = useState(false);
 
   const todayStr = getTodayString();
@@ -93,6 +95,24 @@ export function App() {
       frequency: 'daily',
     });
     await loadData();
+  };
+
+  const handleUpdateHabit = async (
+    habitId: string,
+    data: { name: string; description: string; icon: string; color: string }
+  ) => {
+    // 乐观更新界面显示
+    setHabits((prev) =>
+      prev.map((h) => (h.id === habitId ? { ...h, ...data } : h))
+    );
+
+    try {
+      await habitService.updateHabit(habitId, data);
+    } catch (err) {
+      console.error('更新习惯失败:', err);
+      await loadData();
+      throw err;
+    }
   };
 
   const handleDeleteHabit = async (habitId: string) => {
@@ -188,6 +208,7 @@ export function App() {
                     habit={habit}
                     completed={isHabitCompletedToday(habit.id)}
                     onToggle={handleToggleHabit}
+                    onEdit={(habitToEdit) => setEditingHabit(habitToEdit)}
                     onDelete={handleDeleteHabit}
                   />
                 ))}
@@ -223,6 +244,14 @@ export function App() {
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
         onAdd={handleAddHabit}
+      />
+
+      {/* 编辑习惯弹窗 */}
+      <EditHabitModal
+        isOpen={!!editingHabit}
+        habit={editingHabit}
+        onClose={() => setEditingHabit(null)}
+        onSave={handleUpdateHabit}
       />
     </div>
   );
