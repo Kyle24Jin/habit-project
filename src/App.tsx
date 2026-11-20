@@ -116,8 +116,15 @@ export function App() {
   };
 
   const handleDeleteHabit = async (habitId: string) => {
-    await habitService.deleteHabit(habitId);
-    await loadData();
+    // 乐观更新界面显示
+    setHabits((prev) => prev.filter((h) => h.id !== habitId));
+    try {
+      await habitService.deleteHabit(habitId);
+      await loadData();
+    } catch (err) {
+      console.error('删除习惯失败:', err);
+      await loadData();
+    }
   };
 
   const isHabitCompletedToday = (habitId: string) => {

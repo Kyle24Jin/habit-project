@@ -98,3 +98,103 @@ test('Habit state update correctly modifies habit in collection', () => {
   assert.strictEqual(updatedHabits[0].color, '#34C759');
   assert.strictEqual(updatedHabits[1].name, '另一习惯');
 });
+
+// Import shouldInitDefaultHabits from habitInit utility
+import { shouldInitDefaultHabits } from '../src/utils/habitInit.ts';
+
+test('shouldInitDefaultHabits allows initialization only for genuine new users', () => {
+  // Brand new user: 0 active habits, 0 total in DB, no flags
+  const isNewUser = shouldInitDefaultHabits({
+    unarchivedCount: 0,
+    totalHabitsCount: 0,
+    localInitialized: false,
+    userMetadataInitialized: false,
+  });
+  assert.strictEqual(isNewUser, true);
+});
+
+test('shouldInitDefaultHabits blocks initialization when user has active habits', () => {
+  const result = shouldInitDefaultHabits({
+    unarchivedCount: 5,
+    totalHabitsCount: 5,
+    localInitialized: true,
+    userMetadataInitialized: true,
+  });
+  assert.strictEqual(result, false);
+});
+
+test('shouldInitDefaultHabits blocks re-initialization when user deletes all habits (bugfix scenario)', () => {
+  // When user deletes all 5 default habits: unarchived is 0, but DB has 5 archived habits
+  const resultWithFlags = shouldInitDefaultHabits({
+    unarchivedCount: 0,
+    totalHabitsCount: 5,
+    localInitialized: true,
+    userMetadataInitialized: true,
+  });
+  assert.strictEqual(resultWithFlags, false);
+
+  // Even if localStorage was cleared on this device:
+  const resultStorageCleared = shouldInitDefaultHabits({
+    unarchivedCount: 0,
+    totalHabitsCount: 5,
+    localInitialized: false,
+    userMetadataInitialized: true,
+  });
+  assert.strictEqual(resultStorageCleared, false);
+
+  // Even on a brand new browser / incognito where both local and metadata flags are false:
+  // DB record count > 0 protects from resurrecting default habits
+  const resultIncognito = shouldInitDefaultHabits({
+    unarchivedCount: 0,
+    totalHabitsCount: 5,
+    localInitialized: false,
+    userMetadataInitialized: false,
+  });
+  assert.strictEqual(resultIncognito, false);
+});
+
+test('shouldInitDefaultHabits blocks initialization when user created and deleted custom habits', () => {
+  const result = shouldInitDefaultHabits({
+    unarchivedCount: 0,
+    totalHabitsCount: 1,
+    localInitialized: false,
+    userMetadataInitialized: false,
+  });
+  assert.strictEqual(result, false);
+});
+
+test('Deleting habits properly removes items and handles deleting all habits', () => {
+  let habits = [
+    { id: 'h1', name: '习惯 1' },
+    { id: 'h2', name: '习惯 2' },
+  ];
+
+  // Delete h1
+  habits = habits.filter((h) => h.id !== 'h1');
+  assert.strictEqual(habits.length, 1);
+  assert.strictEqual(habits[0].id, 'h2');
+
+  // Delete remaining h2 -> empty habit list
+  habits = habits.filter((h) => h.id !== 'h2');
+  assert.strictEqual(habits.length, 0);
+  assert.deepStrictEqual(habits, []);
+});
+
+test('Day progress calculation ignores lingering records of archived/deleted habits', () => {
+  const activeHabits: { id: string; name: string }[] = [];
+  const records = [
+    { habitId: 'archived-habit-1', date: '2026-11-20', completedAt: '2026-11-20T10:00:00Z' },
+  ];
+
+  const activeHabitIds = new Set(activeHabits.map((h) => h.id));
+  const activeRecords = records.filter((r) => activeHabitIds.has(r.habitId));
+
+  const total = activeHabits.length;
+  const completed = activeRecords.length;
+  const percentage = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+
+  assert.strictEqual(total, 0);
+  assert.strictEqual(completed, 0);
+  assert.strictEqual(percentage, 0);
+});
+

@@ -1,6 +1,7 @@
 import { supabase } from './supabase';
 import { Habit, CheckInRecord, DayProgress, WeekStats, MonthStats, YearStats } from '../types/habit';
 import { getTodayString, getDayOfWeekName, getDaysInMonth, getRecentDays } from '../utils/date';
+import { shouldInitDefaultHabits } from '../utils/habitInit';
 
 const DEFAULT_HABITS = [
   {
@@ -40,27 +41,67 @@ const DEFAULT_HABITS = [
   },
 ];
 
+function getLocalInitialized(userId: string): boolean {
+  try {
+    return typeof window !== 'undefined' && window.localStorage?.getItem(`habits_initialized_${userId}`) === 'true';
+  } catch {
+    return false;
+  }
+}
+
+function setLocalInitialized(userId: string): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      window.localStorage.setItem(`habits_initialized_${userId}`, 'true');
+    }
+  } catch {}
+}
+
 class SupabaseHabitService {
+  private initPromise: Promise<Habit[]> | null = null;
+
   /**
    * 初始化新用户的默认习惯
    */
   async initDefaultHabits(): Promise<Habit[]> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return [];
-
-    const inserts = DEFAULT_HABITS.map((h) => ({
-      ...h,
-      user_id: user.id,
-      archived: false,
-    }));
-
-    const { data, error } = await supabase.from('habits').insert(inserts).select();
-    if (error || !data) {
-      console.error('初始化默认习惯失败:', error);
-      return [];
+    if (this.initPromise) {
+      return this.initPromise;
     }
 
-    return data.map(this.mapDbHabit);
+    this.initPromise = (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      // 标记本地已初始化，防止任何重复调用
+      setLocalInitialized(user.id);
+
+      // 更新 Supabase 用户元数据
+      supabase.auth.updateUser({
+        data: { habits_initialized: true },
+      }).catch((err) => {
+        console.warn('更新用户 habits_initialized 元数据失败:', err);
+      });
+
+      const inserts = DEFAULT_HABITS.map((h) => ({
+        ...h,
+        user_id: user.id,
+        archived: false,
+      }));
+
+      const { data, error } = await supabase.from('habits').insert(inserts).select();
+      if (error || !data) {
+        console.error('初始化默认习惯失败:', error);
+        return [];
+      }
+
+      return data.map(this.mapDbHabit);
+    })();
+
+    try {
+      return await this.initPromise;
+    } finally {
+      this.initPromise = null;
+    }
   }
 
   private mapDbHabit(row: any): Habit {
@@ -99,10 +140,53 @@ class SupabaseHabitService {
       return [];
     }
 
-    // 如果新用户没有任何习惯，自动创建默认习惯
+    // 如果未归档习惯为空，检查是否为全新用户
     if (!data || data.length === 0) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return [];
+
+      const localInitialized = getLocalInitialized(user.id);
+      const userMetadataInitialized = !!user.user_metadata?.habits_initialized;
+
+      // 如果已在本地缓存或元数据中标记过初始化，直接返回空习惯列表
+      if (localInitialized || userMetadataInitialized) {
+        return [];
+      }
+
+      // 检查数据库中是否存在历史记录（包括已归档/删除的习惯）
+      const { count, error: countError } = await supabase
+        .from('habits')
+        .select('id', { count: 'exact', head: true });
+
+      if (countError) {
+        console.error('检查习惯总数失败:', countError);
+        return [];
+      }
+
+      const totalHabitsCount = count ?? 0;
+
+      const shouldInit = shouldInitDefaultHabits({
+        unarchivedCount: 0,
+        totalHabitsCount,
+        localInitialized,
+        userMetadataInitialized,
+      });
+
+      if (!shouldInit) {
+        setLocalInitialized(user.id);
+        return [];
+      }
+
       return this.initDefaultHabits();
     }
+
+    // 当前有未归档习惯，确保本地标记为已初始化
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setLocalInitialized(user.id);
+      }
+    } catch {}
 
     return data.map(this.mapDbHabit);
   }
@@ -113,6 +197,8 @@ class SupabaseHabitService {
   async createHabit(habitData: Omit<Habit, 'id' | 'createdAt'>): Promise<Habit> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) throw new Error('用户未登录');
+
+    setLocalInitialized(user.id);
 
     const { data, error } = await supabase
       .from('habits')
@@ -171,6 +257,11 @@ class SupabaseHabitService {
    * 软删除（归档）习惯
    */
   async deleteHabit(habitId: string): Promise<boolean> {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      setLocalInitialized(user.id);
+    }
+
     const { error } = await supabase
       .from('habits')
       .update({ archived: true })
@@ -235,8 +326,11 @@ class SupabaseHabitService {
       this.getRecordsByDate(dateStr),
     ]);
 
+    const activeHabitIds = new Set(habits.map((h) => h.id));
+    const activeRecords = records.filter((r) => activeHabitIds.has(r.habitId));
+
     const total = habits.length;
-    const completed = records.length;
+    const completed = activeRecords.length;
     const percentage = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
 
     return {
