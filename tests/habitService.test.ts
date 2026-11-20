@@ -198,3 +198,54 @@ test('Day progress calculation ignores lingering records of archived/deleted hab
   assert.strictEqual(percentage, 0);
 });
 
+// Import user validation and resolution functions
+import { validateUsername, resolveInitialUsername } from '../src/utils/userValidation.ts';
+
+test('validateUsername validates empty and whitespace usernames', () => {
+  assert.deepStrictEqual(validateUsername(''), { valid: false, error: '用户名不能为空' });
+  assert.deepStrictEqual(validateUsername('   '), { valid: false, error: '用户名不能为空' });
+});
+
+test('validateUsername validates length limits (max 20 characters)', () => {
+  const exact20 = 'a'.repeat(20);
+  const over20 = 'a'.repeat(21);
+  assert.deepStrictEqual(validateUsername(exact20), { valid: true });
+  assert.deepStrictEqual(validateUsername(over20), { valid: false, error: '用户名长度不能超过 20 个字符' });
+});
+
+test('validateUsername accepts normal usernames', () => {
+  assert.deepStrictEqual(validateUsername('Kyle Jin'), { valid: true });
+  assert.deepStrictEqual(validateUsername('自律挑战者'), { valid: true });
+  assert.deepStrictEqual(validateUsername('  晨跑达人  '), { valid: true });
+});
+
+test('resolveInitialUsername resolves username with correct priority', () => {
+  // 1. null user fallback
+  assert.strictEqual(resolveInitialUsername(null), '习惯达人');
+
+  // 2. Email prefix fallback
+  assert.strictEqual(
+    resolveInitialUsername({ email: 'developer@example.com' }),
+    'developer'
+  );
+
+  // 3. display_name priority over email
+  assert.strictEqual(
+    resolveInitialUsername({
+      email: 'user@example.com',
+      user_metadata: { display_name: '晨光行者' },
+    }),
+    '晨光行者'
+  );
+
+  // 4. username highest priority
+  assert.strictEqual(
+    resolveInitialUsername({
+      email: 'user@example.com',
+      user_metadata: { username: 'Kyle', display_name: '其他名称' },
+    }),
+    'Kyle'
+  );
+});
+
+

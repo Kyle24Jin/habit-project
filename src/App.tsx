@@ -8,8 +8,10 @@ import { HabitItem } from './components/HabitItem';
 import { StatsView } from './components/StatsView';
 import { AddHabitModal } from './components/AddHabitModal';
 import { EditHabitModal } from './components/EditHabitModal';
+import { EditUsernameModal } from './components/EditUsernameModal';
 import { AuthView } from './components/AuthView';
-import { CheckCircle2, BarChart3, Plus, Sparkles, LogOut } from 'lucide-react';
+import { userService } from './services/userService';
+import { CheckCircle2, BarChart3, Plus, Sparkles, LogOut, Edit3, User } from 'lucide-react';
 import './App.css';
 
 export function App() {
@@ -26,6 +28,8 @@ export function App() {
   });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [editingHabit, setEditingHabit] = useState<Habit | null>(null);
+  const [isEditUserOpen, setIsEditUserOpen] = useState(false);
+  const [username, setUsername] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   const todayStr = getTodayString();
@@ -35,6 +39,9 @@ export function App() {
     // 检查与监听 Supabase 登录会话
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
+      if (session?.user) {
+        setUsername(userService.getUsername(session.user));
+      }
       setAuthLoading(false);
       if (session) {
         loadData();
@@ -45,6 +52,9 @@ export function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      if (session?.user) {
+        setUsername(userService.getUsername(session.user));
+      }
       if (session) {
         loadData();
       }
@@ -127,6 +137,11 @@ export function App() {
     }
   };
 
+  const handleUpdateUsername = async (newName: string) => {
+    const updated = await userService.updateUsername(newName);
+    setUsername(updated);
+  };
+
   const isHabitCompletedToday = (habitId: string) => {
     return todayRecords.some((r) => r.habitId === habitId);
   };
@@ -161,6 +176,20 @@ export function App() {
         </div>
 
         <div className="header-actions">
+          {/* 用户名徽章：点击修改用户名 */}
+          <button
+            className="user-profile-badge"
+            onClick={() => setIsEditUserOpen(true)}
+            title={`当前用户: ${username} (点击修改)`}
+            aria-label="修改用户名"
+          >
+            <span className="user-avatar-badge">
+              {username ? username.charAt(0).toUpperCase() : <User size={13} />}
+            </span>
+            <span className="user-name-text">{username || '设置昵称'}</span>
+            <Edit3 size={12} className="user-edit-icon" />
+          </button>
+
           {currentTab === 'today' && (
             <button
               className="add-habit-trigger"
@@ -259,6 +288,15 @@ export function App() {
         habit={editingHabit}
         onClose={() => setEditingHabit(null)}
         onSave={handleUpdateHabit}
+      />
+
+      {/* 修改用户名弹窗 */}
+      <EditUsernameModal
+        isOpen={isEditUserOpen}
+        currentUsername={username}
+        email={session?.user?.email}
+        onClose={() => setIsEditUserOpen(false)}
+        onSave={handleUpdateUsername}
       />
     </div>
   );
